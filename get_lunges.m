@@ -1,6 +1,8 @@
-function get_lunges(directory, classifiername)
+function get_lunges(directory, videoname, classifiername)
   %Ben Habermeyer
-    %function takes as input a string containing the name of the directory
+    %function takes as input a string containing the name of the directory,
+    %a string containing the video name, and a string containing the
+    %clasifier name
     %finds the initial a and b locations using x.mat and y.mat in the perframe
     %features for each well
     %outputs an excel file containing the number of bouts and their frame
@@ -118,13 +120,12 @@ function get_lunges(directory, classifiername)
     end
 
     %write the data to an excel file - has directory name_classifier name
-    filename = strcat(directory, '_', classifiername, '_Data');
+    filename = strcat(directory, '\', videoname, '_', classifiername, '_Data');
     titles = {'Well Position', 'Fly ID', 'Number of Lunges', 'Start Frames', ...
         'End Frames', 'Start Times (s)'};
     output = [titles; ids];
     xlswrite(filename, output);
-    disp('Finished writing to excel file')
-
+    
     %plotting helper
     %{
     %dots
