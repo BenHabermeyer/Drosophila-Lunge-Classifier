@@ -1,5 +1,4 @@
-function auto_track(folders, f_vid, f_calib)
-    % list of all folders to be processed
+function auto_track(flytracker_path, folders, f_vid, f_calib)
     %Ben Habermeyer
     %Function for calling flytracker given a video and calibration file
     %folders represents the folders containing videos to track
@@ -7,7 +6,6 @@ function auto_track(folders, f_vid, f_calib)
     %f_calib represents the calibration file
     
     %add flytracker directory to path
-    flytracker_path = 'C:\Users\Ben\Documents\FlyTracker-1.0.5';
     addpath(genpath(flytracker_path))
     
     % set options (omit any or all to use default options)

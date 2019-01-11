@@ -39,9 +39,9 @@ class VideoPipelineNew(object):
 
 		#MATLAB stuff
 		#calibrate the tracker
-		#self.calibrate_tracker()
+		self.calibrate_tracker()
 		#track the video
-		#self.run_tracker()
+		self.run_tracker()
 		#reorganize the folders for JAABA
 		#self.prepare_JAABA()
 
@@ -49,7 +49,7 @@ class VideoPipelineNew(object):
 		#run the JAABA program
 		#self.classify_behavior()
 		#get the output
-		self.get_lunge_data()
+		#self.get_lunge_data()
 
 		#other important varialbes
 		#self.filename = full path to and ending with video name
@@ -116,7 +116,6 @@ class VideoPipelineNew(object):
 		"""
 		asks another dialog of how many seconds you would like to crop off the start of the video
 		"""
-
 		def get_time():
 			self.crop_time = int(Entry.get(entry_1))
 			my_window.quit()
@@ -141,8 +140,8 @@ class VideoPipelineNew(object):
 		crops the beginning of a video based on the self.crop_time defined in the how_long_crop function.
 		updates the filename, name, and fullname to be that of the newly cropped video
 		"""
+		print('Starting video crop')
 		p = Pool(self.n_cpus)
-		s1 = time.time()
 		os.chdir(self.root)
 		path = self.filename
 		start_time = self.crop_time
@@ -161,13 +160,11 @@ class VideoPipelineNew(object):
 		self.name = self.name + '_cropped'
 		self.filename = self.root + '/' + self.fullname
 
-		s2 = time.time()
-		print('cropping beginning of video time ' + str(s2 - s1))
-
 	def calibrate_tracker(self):
 		"""
 		launches MATLAB code for automatic calibration of the video
 		"""
+		print('Launching FlyTracker Calibration')
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
@@ -180,29 +177,36 @@ class VideoPipelineNew(object):
 		video = self.filename # this is the file to the trimmed video per well
 		self.calib = video.split('.')[0] + '_calibration.mat' 
 		# Launch FlyTracker Calibration - takes as input the path name to the video and the
-		eng.auto_calibrate(video, self.calib, nargout = 0) 
+		eng.auto_calibrate(self.flytracker_path, video, self.calib, nargout = 0) 
+
+		
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+		
+
+	def run_tracker(self):
+		"""
+		launches MATLAB code for automatic tracking of the video after calibration
+		"""
+		print('Launching FlyTracker Tracking')
+		
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
 			print('could not find any engines to quit')
 			pass
 
-	def run_tracker(self):
-		"""
-		launches MATLAB code for automatic tracking of the video after calibration
-		"""
-		try:  # try quiting out of any lingering matlab engines
-			eng.quit()
-		except:  # if not just keep going with the code
-			print('could not find any engines to quit')
-			pass
-		eng = matlab.engine.start_matlab() 
+		#or eng = matlab.engine.connect_matlab()
+		eng = matlab.engine.start_matlab()
 		#videoname and calibration file needed for tracking
 		foldername = self.root
 		extension = '*.' + self.fullname.split('.')[-1]
 		#calibration = self.calib
 		calibration = self.filename.split('.')[0] + '_calibration.mat'
-		eng.auto_track({foldername}, extension, calibration, nargout = 0)
+		eng.auto_track(self.flytracker_path, {foldername}, extension, calibration, nargout = 0)
 
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
@@ -215,6 +219,7 @@ class VideoPipelineNew(object):
 		function prepares the data for JAABA by making the correct directory structure JAABA wants
 		need to grab the perframe folder and the tracking file and move to directory
 		"""
+		print('Preparing files for JAABA')
 		destination = self.root
 		filename = self.name
 		trx_path = destination + '/' + filename + '/' + filename + '_JAABA' + '/trx.mat'
@@ -223,11 +228,11 @@ class VideoPipelineNew(object):
 		shutil.move(perframe_path, destination)
 
 	def classify_behavior(self):
-		pass
 		"""
 		calls JAABA classifier from MATLAB
 		.jab file name is stored at the start, should be stored in the same spot as all the code
 		"""
+		print('Classifying behavior using JAABA')
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
@@ -244,10 +249,10 @@ class VideoPipelineNew(object):
 			pass	
 
 	def get_lunge_data(self):
-		pass
 		"""
 		calls MATLAB function to grab the data from the JAABA output
 		"""
+		print('Writing lunge data')
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
@@ -255,9 +260,10 @@ class VideoPipelineNew(object):
 			pass
 		eng = matlab.engine.start_matlab() 
 		directory = self.root
+		videoname = self.name
 		classifiername = self.classifier.split('.')[0]
 		#call whichever classifier you want
-		eng.get_lunges(directory, classifiername, nargout = 0)
+		eng.get_lunges(directory, videoname, classifiername, nargout = 0)
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
@@ -272,7 +278,6 @@ class VideoPipelineNew(object):
 	def make_wellfolders(self):
 		"""
 		Makes folders for each of the wells,
-
 		 IMPORTANT
 		---------
 		Code Assumes that the number of wells is 12, if not this parameter needs to be changed below
@@ -289,7 +294,7 @@ class VideoPipelineNew(object):
 		#to resolve later
 		i = 0
 
-		print('starting detect')
+		print('Starting detect')
 		num_wells = self.num_wells
 		videofile = self.filename
 		print('Videofile : ' + str(videofile))
@@ -355,6 +360,13 @@ class VideoPipelineNew(object):
 							cv2.imwrite(fname, frame)
 							capture.release()
 							cv2.destroyAllWindows()
+
+	def mask_background(self):
+		pass
+		"""
+		TO DO
+		function takes the result of detecting the wells to mask the background of the video
+		"""
 
 					
 	def save_obj(self, obj, name):
