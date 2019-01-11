@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
-from tkinter import Tk, filedialog
+import tkinter as tk
+from tkinter import Tk, filedialog, messagebox
+from tkinter import*
 import os, subprocess
 import cv2
 import pickle
@@ -9,23 +11,64 @@ import moviepy.editor as mpy
 from moviepy.config import get_setting
 import time
 import moviepy
+import matlab.engine
+import shutil
 
 
 class VideoPipelineNew(object):
 
 	#Create instance of class with 12 videos to crop
-	def __init__(self, num_wells = 12):
-		self.num_wells = num_wells
-		self.well_roots = [] # This will contain the paths of all wells
-		#self.circ_vid_root = []  # This will include the paths of all trimmed video with one well
+	def __init__(self):
+		#path to where the code is kept
+		self.code_path = r'C:\Users\Ben\Documents\JAABA\PythonForJaaba'
+		#classifier filename
+		self.classifier = 'LungeV1.jab'
+		#FlyTracker path on computer
+		self.flytracker_path = r'C:\Users\Ben\Documents\FlyTracker-1.0.5'
+		#JAABA path on computer
+		self.jaaba_path = r'C:\Users\Ben\Documents\JAABA\JAABA-master\perframe'
+
+		#background variables
+		self.num_wells = 12
+		self.n_cpus = 2
+
 		#select the video file
 		self.load_single()
+		#ask if you want to crop the first x seconds
+		self.ask_crop()
+
+		#MATLAB stuff
+		#calibrate the tracker
+		#self.calibrate_tracker()
+		#track the video
+		#self.run_tracker()
+		#reorganize the folders for JAABA
+		#self.prepare_JAABA()
+
+		#JAABA stuff
+		#run the JAABA program
+		#self.classify_behavior()
+		#get the output
+		self.get_lunge_data()
+
+		#other important varialbes
+		#self.filename = full path to and ending with video name
+		#self.root is root of folder containing video, filename without the file extension
+		#self.name is video name without extension
+		#self.fullname is the video name with extension
+		#self.calib is the path to the calibration .mat file
+
+
+		#stuff only needed for cropping the videos into 12 separate ones (ew)
+		'''
+		#self.well_roots = [] # This will contain the paths of all wells
 		#make its folders
 		self.make_wellfolders()
 		#detect the wells
 		self.detect()
 		#crop the videos
-		#self.crop_vid()
+		self.crop_vid()
+		'''
 
 
 	def load_single(self):
@@ -58,6 +101,173 @@ class VideoPipelineNew(object):
 		self.attributes = '\n'.join("%s: %s" % item for item in vars(self).items())
 		print('\nHere are the attributes you can access using .:')
 		print(self.attributes)
+
+
+	def ask_crop(self):
+		"""
+		asks if you would like to crop the start of a video to fix the aparature settings. if no does nothing.
+		if yes then calls next dialog
+		"""
+		MsgBox = tk.messagebox.askquestion('Crop Video',"Would you like to crop the video's beginning?", icon = 'warning')
+		if MsgBox == 'yes':
+			self.how_long_crop()
+
+	def how_long_crop(self):
+		"""
+		asks another dialog of how many seconds you would like to crop off the start of the video
+		"""
+
+		def get_time():
+			self.crop_time = int(Entry.get(entry_1))
+			my_window.quit()
+			self.crop_start()
+
+		my_window = Tk()
+
+		label_1 = Label(my_window, text = 'How many seconds would you like to crop from the start:')
+		entry_1 = Entry(my_window)
+
+		label_1.grid(row = 0, column = 0)
+		entry_1.grid(row = 0, column = 1)
+
+
+		button_1 = Button(my_window, text = "Done", command = get_time)
+		button_1.grid(row = 1, column = 0)
+
+		my_window.mainloop()
+
+	def crop_start(self):
+		"""
+		crops the beginning of a video based on the self.crop_time defined in the how_long_crop function.
+		updates the filename, name, and fullname to be that of the newly cropped video
+		"""
+		p = Pool(self.n_cpus)
+		s1 = time.time()
+		os.chdir(self.root)
+		path = self.filename
+		start_time = self.crop_time
+		#arbitrary end time is really big like 300 minutes
+		end_time = 18000
+
+		#rename the cropped file
+		filetype = self.fullname.split('.')[-1]
+		outputname = self.name + '_cropped.' + filetype
+
+		from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
+		ffmpeg_extract_subclip(self.fullname, start_time, end_time, targetname = outputname)
+
+		#rename the originial file and path to be the new cropped file
+		self.fullname = outputname
+		self.name = self.name + '_cropped'
+		self.filename = self.root + '/' + self.fullname
+
+		s2 = time.time()
+		print('cropping beginning of video time ' + str(s2 - s1))
+
+	def calibrate_tracker(self):
+		"""
+		launches MATLAB code for automatic calibration of the video
+		"""
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+		eng = matlab.engine.start_matlab() 
+
+		# for each of the videos, launch AutoCalibrate.m matlab script
+		# takes as input the path to the video and the path to the calibration file
+		video = self.filename # this is the file to the trimmed video per well
+		self.calib = video.split('.')[0] + '_calibration.mat' 
+		# Launch FlyTracker Calibration - takes as input the path name to the video and the
+		eng.auto_calibrate(video, self.calib, nargout = 0) 
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+
+	def run_tracker(self):
+		"""
+		launches MATLAB code for automatic tracking of the video after calibration
+		"""
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+		eng = matlab.engine.start_matlab() 
+		#videoname and calibration file needed for tracking
+		foldername = self.root
+		extension = '*.' + self.fullname.split('.')[-1]
+		#calibration = self.calib
+		calibration = self.filename.split('.')[0] + '_calibration.mat'
+		eng.auto_track({foldername}, extension, calibration, nargout = 0)
+
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+
+	def prepare_JAABA(self):
+		"""
+		function prepares the data for JAABA by making the correct directory structure JAABA wants
+		need to grab the perframe folder and the tracking file and move to directory
+		"""
+		destination = self.root
+		filename = self.name
+		trx_path = destination + '/' + filename + '/' + filename + '_JAABA' + '/trx.mat'
+		perframe_path = destination + '/' + filename + '/' + filename + '_JAABA/perframe'
+		shutil.move(trx_path, destination)
+		shutil.move(perframe_path, destination)
+
+	def classify_behavior(self):
+		pass
+		"""
+		calls JAABA classifier from MATLAB
+		.jab file name is stored at the start, should be stored in the same spot as all the code
+		"""
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+		eng = matlab.engine.start_matlab() 
+		classifier_path = self.code_path + '/' + self.classifier
+		eng.classify_behavior(self.jaaba_path, classifier_path, self.root, nargout = 0)
+
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass	
+
+	def get_lunge_data(self):
+		pass
+		"""
+		calls MATLAB function to grab the data from the JAABA output
+		"""
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+		eng = matlab.engine.start_matlab() 
+		directory = self.root
+		classifiername = self.classifier.split('.')[0]
+		#call whichever classifier you want
+		eng.get_lunges(directory, classifiername, nargout = 0)
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+
+
+
+	#code below here is for slicing videos by individual wells, if necessary
+
 
 	def make_wellfolders(self):
 		"""
@@ -203,8 +413,7 @@ class VideoPipelineNew(object):
 		"""
 
 		#how long this is going to take
-		n_cpus = 2
-		p = Pool(n_cpus)
+		p = Pool(self.n_cpus)
 		s1 = time.time()
 		#get the video path
 		path = self.filename
@@ -235,7 +444,7 @@ class VideoPipelineNew(object):
 			subprocess.call(['ffmpeg', '-i', '{}'.format(path),  # input file
 			       '-filter:v', 'crop={}:{}:{}:{}'.format(side, side, X1, Y1),
 			       '-an', '{}'.format(ffmpeg_crop_out)])
-			'''
+			'''	
 			cmd = [get_setting(varname="FFMPEG_BINARY"), '-i', '{}'.format(path),  # input file
 			       '-filter:v', 'crop={}:{}:{}:{}'.format(side, side, X1, Y1),
 			       '-an', '{}'.format(ffmpeg_crop_out)]
@@ -247,7 +456,7 @@ class VideoPipelineNew(object):
 			
 
 		s2 = time.time()
-		print('parallel time' + str(s2 - s1))
+		print('cropping individual wells time' + str(s2 - s1))
 
 
 #create instance of class and run
