@@ -13,6 +13,7 @@ import time
 import moviepy
 import matlab.engine
 import shutil
+import math
 
 
 class VideoPipelineNew(object):
@@ -37,19 +38,23 @@ class VideoPipelineNew(object):
 		#ask if you want to crop the first x seconds
 		self.ask_crop()
 
+		
 		#MATLAB stuff
 		#calibrate the tracker
 		self.calibrate_tracker()
 		#track the video
 		self.run_tracker()
 		#reorganize the folders for JAABA
-		#self.prepare_JAABA()
+		self.prepare_JAABA()
+		
 
 		#JAABA stuff
 		#run the JAABA program
 		#self.classify_behavior()
 		#get the output
 		#self.get_lunge_data()
+
+		
 
 		#other important varialbes
 		#self.filename = full path to and ending with video name
@@ -63,12 +68,16 @@ class VideoPipelineNew(object):
 		'''
 		#self.well_roots = [] # This will contain the paths of all wells
 		#make its folders
-		self.make_wellfolders()
+		#self.make_wellfolders()
 		#detect the wells
 		self.detect()
+		self.select_background_pixel()
+		self.mask_background()
 		#crop the videos
-		self.crop_vid()
+		#self.crop_vid()
 		'''
+		
+		
 
 
 	def load_single(self):
@@ -164,6 +173,7 @@ class VideoPipelineNew(object):
 		"""
 		launches MATLAB code for automatic calibration of the video
 		"""
+		os.chdir(self.code_path)
 		print('Launching FlyTracker Calibration')
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
@@ -192,7 +202,7 @@ class VideoPipelineNew(object):
 		launches MATLAB code for automatic tracking of the video after calibration
 		"""
 		print('Launching FlyTracker Tracking')
-		
+		os.chdir(self.code_path)
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
@@ -206,7 +216,7 @@ class VideoPipelineNew(object):
 		extension = '*.' + self.fullname.split('.')[-1]
 		#calibration = self.calib
 		calibration = self.filename.split('.')[0] + '_calibration.mat'
-		eng.auto_track(self.flytracker_path, {foldername}, extension, calibration, nargout = 0)
+		eng.auto_track(self.flytracker_path, foldername, extension, calibration, nargout = 0)
 
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
@@ -233,6 +243,7 @@ class VideoPipelineNew(object):
 		.jab file name is stored at the start, should be stored in the same spot as all the code
 		"""
 		print('Classifying behavior using JAABA')
+		os.chdir(self.code_path)
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
@@ -253,6 +264,7 @@ class VideoPipelineNew(object):
 		calls MATLAB function to grab the data from the JAABA output
 		"""
 		print('Writing lunge data')
+		os.chdir(self.code_path)
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
@@ -291,9 +303,6 @@ class VideoPipelineNew(object):
 			self.well_roots.append(os.path.join(self.root, self.name, 'well{}'.format(i)))
 
 	def detect(self):
-		#to resolve later
-		i = 0
-
 		print('Starting detect')
 		num_wells = self.num_wells
 		videofile = self.filename
@@ -333,7 +342,7 @@ class VideoPipelineNew(object):
 						#capture.read()
 						
 					
-					if cv2.waitKey(2) & 0xFF == ord('q'):
+					if cv2.waitKey(10) & 0xFF == ord('q'):
 						'''
 						for index, (x, y, r) in enumerate(circles):
 							print(index)
@@ -349,26 +358,18 @@ class VideoPipelineNew(object):
 
 						if len(circles) == 12:
 							d = self.get_well_labels(circles)
-							dirname = os.path.dirname(videofile) + '\\'
+							dirname = os.path.dirname(videofile) + '/'
 							self.dictpath = dirname + 'well_dictionary'
 							self.circlespath = dirname + 'well_circles'
 							self.save_obj(d, self.dictpath)
 							self.save_obj(circles, self.circlespath)
 							#self.circ_vid_root.append(dirname + 'allwells')
-							fname = dirname + 'crop_test.jpg'
+							self.fname = dirname + "crop_test.jpg"
 							# write image
-							cv2.imwrite(fname, frame)
+							cv2.imwrite(self.fname, frame)
 							capture.release()
 							cv2.destroyAllWindows()
 
-	def mask_background(self):
-		pass
-		"""
-		TO DO
-		function takes the result of detecting the wells to mask the background of the video
-		"""
-
-					
 	def save_obj(self, obj, name):
 		"""saves passed obj as name.pickle"""
 		with open(name + '.pickle', 'wb') as handle:
@@ -378,6 +379,96 @@ class VideoPipelineNew(object):
 		"""loads name, which is a path to a pickle file without the .pickle at the end"""
 		with open(name + '.pickle', 'rb') as handle:
 			return pickle.load(handle)
+
+	def select_background_pixel(self):
+		#aiting = True
+		#efPT = []
+		'''
+		def click(event, x, y, flags, param):
+			global refPT, waiting
+
+			if event ==cv2.EVENT_LBUTTONDOWN:
+				refPT = [(x, y)]
+				waiting = False
+		'''
+		image = cv2.imread(self.fname)
+		'''
+		cv2.namedWindow("image")
+		cv2.setMouseCallback("image", click)
+		while waiting:
+			cv2.imshow("image", image)
+			key = cv2.waitKey(1) & 0xFF
+
+			if key == ord('q'):
+				break
+
+		cv2.destroyAllWindows()
+		'''
+		self.rgb_point = image[360][640]
+		print(self.rgb_point)
+
+
+	def mask_background(self):
+		"""
+		TO DO
+		function takes the result of detecting the wells to apply a mask to the 
+		background of the video, thereby constructing
+		a new masked video
+		"""		
+		path = self.filename
+		dirname = os.path.dirname(path) + '/'
+		#circles is a list of lists of length 3 given by [height, width, radius]
+		circles = self.load_obj(dirname + 'well_circles')
+
+		#checks if a given pixel location is inside one of the 12 circles
+		def incircle(xinput, yinput, circleslist):
+			for circle in circleslist:
+				x = circle[1]
+				y = circle[0]
+				radius = circle[2]
+				ans = math.sqrt((x - xinput)**2 + (y - yinput)**2)
+				if ans < radius:
+					return True
+			return False
+
+		#construct the 2 masks
+		mask1 = np.zeros((720, 1280, 3)).astype('uint8')
+		mask2 = np.zeros((720, 1280, 3)).astype('uint8')
+		for x in range(720):
+			for y in range(1280):
+				if incircle(x, y, circles):
+					mask1[x][y][:] = 1
+				else:
+					mask2[x][y][0] = self.rgb_point[0]
+					mask2[x][y][1] = self.rgb_point[1]
+					mask2[x][y][2] = self.rgb_point[2]
+
+		#write the new maked video to a new video
+		videofile = self.filename
+		capture = cv2.VideoCapture(videofile)
+
+		#output file type and codec
+		fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+		outputname = self.root + '/' + self.name + '_masked.mp4'
+		out = cv2.VideoWriter(outputname, fourcc, 30, (1280, 720))
+			
+		while(True):
+			ret, frame = capture.read()
+
+			if ret == True:
+				#modify the current frame and write it to new video
+				out.write(np.add(np.multiply(frame, mask1), mask2))
+				#out.write(np.dstack([single] * 3))
+			else:
+				break
+
+		capture.release()
+		out.release()
+
+		cv2.destroyAllWindows()
+
+		#rename the current file and name to be the cropped one
+	
 
 	def get_well_labels(self, array):
 		"""
@@ -431,6 +522,9 @@ class VideoPipelineNew(object):
 		path = self.filename
 		name = self.name
 		#get the video pathname
+
+		#be careful of \\ vs /
+
 		dirname = os.path.dirname(path) + '\\'
 		dirname2 = os.path.dirname(path) + '\\' + str(name) + '\\'
 		#folder name
