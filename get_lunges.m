@@ -1,8 +1,8 @@
-function get_lunges(directory, videoname, classifiername)
+function get_lunges(directory, videoname, classifiername, excluded, xvals, yvals)
   %Ben Habermeyer
     %function takes as input a string containing the name of the directory,
     %a string containing the video name, and a string containing the
-    %clasifier name
+    %clasifier name, and a list of wells to be excluded
     %finds the initial a and b locations using x.mat and y.mat in the perframe
     %features for each well
     %outputs an excel file containing the number of bouts and their frame
@@ -25,10 +25,17 @@ function get_lunges(directory, videoname, classifiername)
     load y.mat
     ydata = data;
     clear data
+    
+    disp(excluded)
+    %boolean matrix for wells 1-12 whether they are excluded 1 or not 0
+    is_excluded = zeros(1,12);
+    for i = 1:length(excluded)
+        is_excluded(double(excluded{i})) = 1;
+    end
 
-    %figure out which index corresponds to which fly position
-    %use a cell arary to store wells 1-12 flies A-B and their corresponding #
-    ids = cell(24, 6);
+    %use a cell arary to store wells 1-12 flies A-B and their corresponding
+    %information
+    ids = cell(24, 7);
     %instantiate positions
     counter = 1;
     for i = 1:12
@@ -42,34 +49,63 @@ function get_lunges(directory, videoname, classifiername)
             counter = counter + 1;
         end
     end
-    positions = NaN(24,3);
-    for i = 1:24
+    %write to the excluded column
+    for i = 1:12
+        if is_excluded(i) == 1
+            ids{2*i,3} = 'Excluded';
+            ids{2*i-1,3} = 'Excluded';
+        else
+            ids{2*i,3} = '';
+            ids{2*i-1,3} = '';
+        end
+    end
+    
+    %data of x and y positions, NaN for excluded wells
+    %column 1 is x, 2 is y, 3 is JAABA fly #
+    positions = NaN(length(scores),3);
+    
+    for i = 1:length(scores)
         positions(i, 1) = xdata{1, i}(1);
         positions(i, 2) = ydata{1, i}(1);
         positions(i, 3) = i;
     end
-    %fill positions using x and y data
-    %note increasing x is right increasing y is down
-    %sort based on the y coordinate, then by the x coordinate
-    [~,idx] = sort(positions(:,2)); % sort just the first column
-    sortedpositions = positions(idx,:);   % sort the whole matrix using the sort indices
-
-    %now iterate through 8 flies at a time for each of the 3 rows and sort
-    %by y to assign A/B
-    for row = 1:3
-        %sort group of 8 flies
-        submat = sortedpositions((row-1)*8 + 1 : row*8, :);
-        [~,idx] = sort(submat(:,1)); % sort just the first column
-        sortedx = submat(idx,:);   % sort the whole matrix using the sort indices
-        for col = 1:4
-            %select A and B based on which has the smaller y value (is higher)
-            if sortedx((2*col)-1, 2) < sortedx(2*col, 2)
-                ids{8*row - 8 + (2*col) - 1, 2} = sortedx((2*col)-1, 3);
-                ids{8*row - 8 + (2*col), 2} = sortedx(2*col, 3);
+    
+    %iterate through the positions, assigning which is closest to each well
+    %center. X is column 1, Y is column 2
+    circle_centers = NaN(12,2);
+    for i = 1:12
+       circle_centers(i,1) = xvals{i};
+       circle_centers(i,2) = yvals{i};
+    end
+    
+    %find which fly is closest to which circle center and classify
+    wells = NaN(1,length(scores));
+    for i = 1:length(scores)
+        %check if the fly was not excluded
+        %use the distance formula to calculate the closest well
+        xdiff = (circle_centers(:,1) - positions(i,1)).^2;
+        ydiff = (circle_centers(:,2) - positions(i,2)).^2;
+        distances = sqrt(xdiff + ydiff);
+        [~, ind] = min(distances);
+        wells(i) = ind;
+    end
+    
+    %for each well, classify which fly should be A and which should be B
+    %use which fly was HIGHER is A - the lower y value of the pair and
+    %assign to column 2 of the ids
+    for i = 1:12
+        if is_excluded(i) == 0
+            [~, inds] = find(wells == i);
+            if positions(inds(1),2) < positions(inds(2),2)
+                ids{2*i-1,2} = num2str(inds(1));
+                ids{2*i,2} = num2str(inds(2));
             else
-                ids{8*row - 8 + (2*col) - 1, 2} = sortedx(2*col, 3);
-                ids{8*row - 8 + (2*col), 2} = sortedx((2*col)-1, 3);
+                ids{2*i-1,2} = num2str(inds(2));
+                ids{2*i,2} = num2str(inds(1));
             end
+        else
+            ids{2*i-1,2} = '';
+            ids{2*i,2} = '';
         end
     end
 
@@ -77,14 +113,14 @@ function get_lunges(directory, videoname, classifiername)
     threshold = 10;
 
     %create big matrix with all 24 wells and their scores per frame
-    oldscores = NaN(24, length(scores{1}));
-    for i = 1:24
+    oldscores = NaN(length(scores), length(scores{1}));
+    for i = 1:length(scores)
         oldscores(i, :) = scores{i};
     end
     %I  made ids a cell so make a matrix for easy indexing
-    ids_mat = NaN(24,1);
-    for i = 1:24
-        ids_mat(i) = ids{i, 2};
+    ids_mat = NaN(length(scores),1);
+    for i = 1:length(scores)
+        ids_mat(i) = str2num(ids{i, 2});
     end
 
     %apply the threshold to get a logical index
@@ -92,7 +128,7 @@ function get_lunges(directory, videoname, classifiername)
 
     %find start frames - check if index is 1
     %find end frames - check if index is end
-    for i = 1:24
+    for i = 1:length(scores)
         startframes = [];
         endframes = [];
         ind = find(scores_thresh(i, :) == 1);
@@ -109,39 +145,22 @@ function get_lunges(directory, videoname, classifiername)
         %add startframes and endframes to cell array of ids
         ids_ind = find(ids_mat == i);
         starttostring = sprintf('%d, ', startframes);
-        ids{ids_ind, 4} = starttostring(1:end-2);
+        ids{ids_ind, 5} = starttostring(1:end-2);
         endtostring = sprintf('%d, ', endframes);
-        ids{ids_ind, 5} = endtostring(1:end-2);
+        ids{ids_ind, 6} = endtostring(1:end-2);
         %count the number of lunge bouts
-        ids{ids_ind, 3} = length(startframes);
+        ids{ids_ind, 4} = length(startframes);
         %convert start time frames to seconds (assume 30fps)
         starttimetostring = sprintf('%d, ', round(startframes ./ 30));
-        ids{ids_ind, 6} = starttimetostring(1:end-2);
+        ids{ids_ind, 7} = starttimetostring(1:end-2);
     end
 
     %write the data to an excel file - has directory name_classifier name
     filename = strcat(directory, '\', videoname, '_', classifiername, '_Data');
-    titles = {'Well Position', 'Fly ID', 'Number of Lunges', 'Start Frames', ...
+    titles = {'Well Position', 'Fly ID', 'Excluded', 'Number of Lunges', 'Start Frames', ...
         'End Frames', 'Start Times (s)'};
     output = [titles; ids];
     xlswrite(filename, output);
     
-    %plotting helper
-    %{
-    %dots
-    figure;
-    for i = 1:24
-        hold on
-        txt = num2str(i);
-        plot(xdata{1,i}(1), -ydata{1,i}(1), '.r');
-        text(xdata{1,i}(1), -ydata{1,i}(1), txt);
-    end
-    %lunge bouts
-    for i = 1:24
-        figure;
-        plot(1:1811, scores{1, ids{i, 2}});
-        title(ids{i, 1});
-    end
-    %}
 end
 
