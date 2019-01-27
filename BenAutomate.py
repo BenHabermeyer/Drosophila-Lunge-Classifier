@@ -41,20 +41,20 @@ class VideoPipelineNew(object):
 		
 		#MATLAB stuff
 		#calibrate the tracker
-		self.calibrate_tracker()
+		#self.calibrate_tracker()
+		self.checkbox_grid()
+		self.find_centers()
 		#track the video
-		self.run_tracker()
+		#self.run_tracker()
 		#reorganize the folders for JAABA
-		self.prepare_JAABA()
+		#self.prepare_JAABA()
 		
 
 		#JAABA stuff
 		#run the JAABA program
 		#self.classify_behavior()
 		#get the output
-		#self.get_lunge_data()
-
-		
+		self.get_lunge_data()
 
 		#other important varialbes
 		#self.filename = full path to and ending with video name
@@ -62,9 +62,10 @@ class VideoPipelineNew(object):
 		#self.name is video name without extension
 		#self.fullname is the video name with extension
 		#self.calib is the path to the calibration .mat file
+		#self.excluded_wells is a list of wells to remove from analysis
 
 
-		#stuff only needed for cropping the videos into 12 separate ones (ew)
+		#Code needed for segmenting and masking background of videos
 		'''
 		#self.well_roots = [] # This will contain the paths of all wells
 		#make its folders
@@ -73,6 +74,7 @@ class VideoPipelineNew(object):
 		self.detect()
 		self.select_background_pixel()
 		self.mask_background()
+
 		#crop the videos
 		#self.crop_vid()
 		'''
@@ -85,10 +87,13 @@ class VideoPipelineNew(object):
 		Launch a GUI so people can click on the videofile that they want to track
 		"""
 		print('Please select the file corresponding to the video you would like to process')
-		Tk().withdraw()  # we don't want a full GUI, so keep the root window from appearing
+		root = tk.Tk()
+		root.withdraw()
 		self.filename = filedialog.askopenfilename()  # Set the filename of the video
 		self.root = self.parent(self.filename)  # Set the video's folder
 		self.name, self.fullname = self.get_fname(self.filename)
+		root.destroy()
+
 
 	def parent(self, path):
 		"""Returns parent directory of a path"""
@@ -117,9 +122,12 @@ class VideoPipelineNew(object):
 		asks if you would like to crop the start of a video to fix the aparature settings. if no does nothing.
 		if yes then calls next dialog
 		"""
+		root = tk.Tk()
+		root.withdraw()
 		MsgBox = tk.messagebox.askquestion('Crop Video',"Would you like to crop the video's beginning?", icon = 'warning')
 		if MsgBox == 'yes':
 			self.how_long_crop()
+		root.destroy()
 
 	def how_long_crop(self):
 		"""
@@ -129,6 +137,7 @@ class VideoPipelineNew(object):
 			self.crop_time = int(Entry.get(entry_1))
 			my_window.quit()
 			self.crop_start()
+			my_window.destroy()
 
 		my_window = Tk()
 
@@ -190,6 +199,156 @@ class VideoPipelineNew(object):
 		eng.auto_calibrate(self.flytracker_path, video, self.calib, nargout = 0) 
 
 		
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+
+		self.good_calibration()
+		
+	def good_calibration(self):
+		"""
+		Dialog asks thse user if he/she was pleased with the calibration. If not, calibration files
+		are deleted and the calibration is called again
+		"""
+		root = tk.Tk()
+		root.withdraw()
+		MsgBox = tk.messagebox.askquestion('Accept Calibration',"Would you like to accept the calibration?", icon = 'warning')
+		if MsgBox == 'yes':
+			root.destroy()
+		elif MsgBox == 'no':
+			#deletes old calibration files and calls calibrator again
+			calib_folder = self.root + '/' + self.name
+			shutil.rmtree(calib_folder)
+			calib_file = self.root + '/' + self.name + '_calibration.mat'
+			os.unlink(calib_file)
+			root.destroy()
+			self.calibrate_tracker()
+
+	def checkbox_grid(self):
+		"""
+		Dialog box with 12 checkboxes for the user to select which wells they would like to exclude, if any. 
+		"""
+		self.excluded_wells = []
+
+		#callback for the "done" button appends to list wells whose buttons have been pressed
+		def get_state():
+			var_list = [var1.get(), var2.get(), var3.get(), var4.get(), var5.get(), var6.get(),
+			var7.get(), var8.get(), var9.get(), var10.get(), var11.get(), var12.get()]
+			self.excluded_wells = [v for v in var_list if v > 0]
+			master.destroy()
+
+		master = Tk()
+
+		Label(master, text="Check Wells to Exclude from Analysis (if any) and click 'Done'").grid(row=0, columnspan = 4,  pady = 4)
+		var1 = IntVar()
+		Checkbutton(master, text="Well 1", variable=var1, onvalue=1, offvalue=0, anchor='w').grid(row=1, column=0, pady = 4, padx = 8)
+		var2 = IntVar()
+		Checkbutton(master, text="Well 2", variable=var2, onvalue=2, offvalue=0, anchor='w').grid(row=1, column=1, pady = 4, padx = 8)
+		var3 = IntVar()
+		Checkbutton(master, text="Well 3", variable=var3, onvalue=3, offvalue=0, anchor='w').grid(row=1, column=2, pady = 4, padx = 8)
+		var4 = IntVar()
+		Checkbutton(master, text="Well 4", variable=var4, onvalue=4, offvalue=0, anchor='w').grid(row=1, column=3, pady = 4, padx = 8)
+		var5 = IntVar()
+		Checkbutton(master, text="Well 5", variable=var5, onvalue=5, offvalue=0, anchor='w').grid(row=2, column=0, pady = 4, padx = 8)
+		var6 = IntVar()
+		Checkbutton(master, text="Well 6", variable=var6, onvalue=6, offvalue=0, anchor='w').grid(row=2, column=1, pady = 4, padx = 8)
+		var7 = IntVar()
+		Checkbutton(master, text="Well 7", variable=var7, onvalue=7, offvalue=0, anchor='w').grid(row=2, column=2, pady = 4, padx = 8)
+		var8 = IntVar()
+		Checkbutton(master, text="Well 8", variable=var8, onvalue=8, offvalue=0, anchor='w').grid(row=2, column=3, pady = 4, padx = 8)
+		var9 = IntVar()
+		Checkbutton(master, text="Well 9", variable=var9, onvalue=9, offvalue=0, anchor='w').grid(row=3, column=0, pady = 4, padx = 8)
+		var10 = IntVar()
+		Checkbutton(master, text="Well 10", variable=var10, onvalue=10, offvalue=0, anchor='w').grid(row=3, column=1, pady = 4, padx = 8)
+		var11 = IntVar()
+		Checkbutton(master, text="Well 11", variable=var11, onvalue=11, offvalue=0, anchor='w').grid(row=3, column=2, pady = 4, padx = 8)
+		var12 = IntVar()
+		Checkbutton(master, text="Well 12", variable=var12, onvalue=12, offvalue=0, anchor='w').grid(row=3, column=3, pady = 4, padx = 8)
+		Button(master, text='Done', command=get_state).grid(row=4, column = 1)
+		master.mainloop()
+
+	def find_centers(self):
+		"""
+		function finds the centers of circular wells for matching later on
+		"""
+		num_wells = self.num_wells
+		videofile = self.filename
+
+		capture = cv2.VideoCapture(videofile)
+		
+		boolean = True
+		while(boolean):
+			ret, frame = capture.read()
+
+			if frame is not None:
+				gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+				blur = cv2.medianBlur(gray, 5)
+				circles = cv2.HoughCircles(blur, cv2.HOUGH_GRADIENT, 1, 20, 
+					param1=60, param2=30, minRadius=85, maxRadius=105)
+
+				if circles is not None:
+					circles = np.round(circles[0, :]).astype('int')
+
+					for index, (x, y, r) in enumerate(circles):
+						cv2.circle(frame, (x, y), r, (255, 0, 255), 2)
+						X1, Y1 = x - r - 20, y - r - 20  # Top left rect coords
+						X2, Y2 = x + r + 20, y + r + 20  # Bottom right rect coords
+						side = X2 - X1
+                    	# draw the frame of rectangle on the screen
+						(cv2.rectangle(frame, (X1, Y2), (X2, Y1), (0, 255, 0), 3))
+					
+					if len(circles) == num_wells:
+						d = self.get_well_labels(circles)
+						d.pop('well0', None)
+						dirname = os.path.dirname(videofile) + '/'
+						self.well_dictionary = d
+						self.well_circles = circles
+						self.fname = dirname + "well_centers.jpg"
+						# write image
+						cv2.imwrite(self.fname, frame)
+						capture.release()
+						cv2.destroyAllWindows()
+						boolean = False
+
+		#code to segment the well positions and send to python
+		xvals = []
+		yvals = []
+		for i in range(1, 13):
+			data = self.well_dictionary['well' + str(i)]
+			datasplit = data.split('_')
+			xvals.append(int(datasplit[0]))
+			yvals.append(int(datasplit[1]))
+
+		self.x_centers = xvals
+		self.y_centers = yvals
+
+
+	def testinput(self):
+		
+		os.chdir(self.code_path)
+		try:  # try quiting out of any lingering matlab engines
+			eng.quit()
+		except:  # if not just keep going with the code
+			print('could not find any engines to quit')
+			pass
+		
+		#code to segment the well positions and send to python
+		xvals = []
+		yvals = []
+		for i in range(1, 13):
+			data = self.well_dictionary['well' + str(i)]
+			datasplit = data.split('_')
+			xvals.append(int(datasplit[0]))
+			yvals.append(int(datasplit[1]))
+
+		self.x_centers = xvals
+		self.y_centers = yvals
+
+		eng = matlab.engine.start_matlab()
+		eng.testinput(self.excluded_wells, nargout = 0)
+
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
@@ -274,14 +433,17 @@ class VideoPipelineNew(object):
 		directory = self.root
 		videoname = self.name
 		classifiername = self.classifier.split('.')[0]
+		excluded = self.excluded_wells
+		print(excluded)
+		xvals = self.x_centers
+		yvals = self.y_centers
 		#call whichever classifier you want
-		eng.get_lunges(directory, videoname, classifiername, nargout = 0)
+		eng.get_lunges(directory, videoname, classifiername, excluded, xvals, yvals, nargout = 0)
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
 		except:  # if not just keep going with the code
 			print('could not find any engines to quit')
 			pass
-
 
 
 	#code below here is for slicing videos by individual wells, if necessary
@@ -488,7 +650,7 @@ class VideoPipelineNew(object):
 		
 		# let's organize y values first
 		n1, n2 = 0, 4  # Slicing start, stop for the array we'll index
-		c = 0  # counter for the well label
+		c = 1  # counter for the well label
 		while n2 <= num_wells:
 			# Create an array of just y values to loop over
 			y_arr = np.array([x for i, x in enumerate(array)
@@ -502,8 +664,8 @@ class VideoPipelineNew(object):
 				c += 1
 			n1 += 4
 			n2 += 4
-        # Oops I created dict d inside out, this fixes it for easier referencing
-		my_d = {d[v]: v for k, v in enumerate(d)}  # oh wow dictionary comprehension so suave
+		#my_d = {d[v]: v for k, v in enumerate(d)}  # oh wow dictionary comprehension so suave
+		my_d = d
 		return my_d
 
 	def crop_vid(self):
