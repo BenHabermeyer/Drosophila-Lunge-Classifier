@@ -8,6 +8,7 @@ import cv2
 import pickle
 from multiprocessing import Pool
 import moviepy.editor as mpy
+from moviepy.editor import*
 from moviepy.config import get_setting
 import time
 import moviepy
@@ -38,25 +39,24 @@ class VideoPipelineNew(object):
 		#ask if you want to crop the first x seconds
 		self.ask_crop()
 
-		
 		#MATLAB stuff
 		#calibrate the tracker
-		#self.calibrate_tracker()
+		self.calibrate_tracker()
 		self.checkbox_grid()
 		self.find_centers()
 		#track the video
-		#self.run_tracker()
+		self.run_tracker()
 		#reorganize the folders for JAABA
-		#self.prepare_JAABA()
+		self.prepare_JAABA()
 		
 
 		#JAABA stuff
 		#run the JAABA program
-		#self.classify_behavior()
+		self.classify_behavior()
 		#get the output
 		self.get_lunge_data()
 
-		#other important varialbes
+		#other important variables
 		#self.filename = full path to and ending with video name
 		#self.root is root of folder containing video, filename without the file extension
 		#self.name is video name without extension
@@ -164,14 +164,27 @@ class VideoPipelineNew(object):
 		path = self.filename
 		start_time = self.crop_time
 		#arbitrary end time is really big like 300 minutes
-		end_time = 18000
+		end_time = 60
 
 		#rename the cropped file
 		filetype = self.fullname.split('.')[-1]
 		outputname = self.name + '_cropped.' + filetype
 
+		'''
 		from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 		ffmpeg_extract_subclip(self.fullname, start_time, end_time, targetname = outputname)
+		'''
+
+		#try a different method using moviepy
+		oldvideo = VideoFileClip(self.fullname)
+		clipped = oldvideo.subclip(start_time, end_time)
+		clipped.write_videofile(outputname, codec = 'libx264')
+		oldvideo.close()
+
+		#create a new subfolder to put the original video in - FlyTracker tracks all videos in folder
+		newfolder = self.root + '/' + 'uncropped_video'
+		os.mkdir(newfolder)
+		shutil.move(self.fullname, newfolder)
 
 		#rename the originial file and path to be the new cropped file
 		self.fullname = outputname
@@ -326,7 +339,6 @@ class VideoPipelineNew(object):
 
 
 	def testinput(self):
-		
 		os.chdir(self.code_path)
 		try:  # try quiting out of any lingering matlab engines
 			eng.quit()
