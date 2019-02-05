@@ -118,45 +118,49 @@ function get_lunges(directory, videoname, classifiername, excluded, xvals, yvals
         oldscores(i, :) = scores{i};
     end
     %I  made ids a cell so make a matrix for easy indexing
-    ids_mat = NaN(length(scores),1);
-    for i = 1:length(scores)
-        ids_mat(i) = str2num(ids{i, 2});
+    ids_mat = NaN(24,1);
+    for i = 1:24
+        ids_mat(i) = str2double(ids{i, 2});
     end
 
     %apply the threshold to get a logical index
-    scores_thresh = oldscores > 10;
+    scores_thresh = oldscores > threshold;
 
     %find start frames - check if index is 1
     %find end frames - check if index is end
-    for i = 1:length(scores)
-        startframes = [];
-        endframes = [];
-        ind = find(scores_thresh(i, :) == 1);
-        for j = 1:length(ind)
-            %if value - 1 is not contained in ind it must be a starting index
-            if all(ind(:) ~= ind(j) - 1)
-                startframes = horzcat(startframes, ind(j));
+    i = 1;
+    for j = 1:24
+        if ~isnan(ids_mat(j))
+            startframes = [];
+            endframes = [];
+            ind = find(scores_thresh(i, :) == 1);
+            for j = 1:length(ind)
+                %if value - 1 is not contained in ind it must be a starting index
+                if all(ind(:) ~= ind(j) - 1)
+                    startframes = horzcat(startframes, ind(j));
+                end
+                %if value + 1 is not containined in ind it must be an ending index
+                if all(ind(:) ~= ind(j) + 1)
+                    endframes = horzcat(endframes, ind(j));
+                end
             end
-            %if value + 1 is not containined in ind it must be an ending index
-            if all(ind(:) ~= ind(j) + 1)
-                endframes = horzcat(endframes, ind(j));
-            end
+            %add startframes and endframes to cell array of ids
+            ids_ind = find(ids_mat == i);
+            starttostring = sprintf('%d, ', startframes);
+            ids{ids_ind, 5} = starttostring(1:end-2);
+            endtostring = sprintf('%d, ', endframes);
+            ids{ids_ind, 6} = endtostring(1:end-2);
+            %count the number of lunge bouts
+            ids{ids_ind, 4} = length(startframes);
+            %convert start time frames to seconds (assume 30fps)
+            starttimetostring = sprintf('%d, ', round(startframes ./ 30));
+            ids{ids_ind, 7} = starttimetostring(1:end-2);
+            i = i + 1;
         end
-        %add startframes and endframes to cell array of ids
-        ids_ind = find(ids_mat == i);
-        starttostring = sprintf('%d, ', startframes);
-        ids{ids_ind, 5} = starttostring(1:end-2);
-        endtostring = sprintf('%d, ', endframes);
-        ids{ids_ind, 6} = endtostring(1:end-2);
-        %count the number of lunge bouts
-        ids{ids_ind, 4} = length(startframes);
-        %convert start time frames to seconds (assume 30fps)
-        starttimetostring = sprintf('%d, ', round(startframes ./ 30));
-        ids{ids_ind, 7} = starttimetostring(1:end-2);
     end
 
     %write the data to an excel file - has directory name_classifier name
-    filename = strcat(directory, '\', videoname, '_', classifiername, '_Data');
+    filename = strcat(directory, '\', videoname, '_', classifiername, '_Data.xlsx');
     titles = {'Well Position', 'Fly ID', 'Excluded', 'Number of Lunges', 'Start Frames', ...
         'End Frames', 'Start Times (s)'};
     output = [titles; ids];
