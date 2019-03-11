@@ -75,7 +75,6 @@ class BehaviorClassifier(object):
 		#self.x_centers are the x pixel coordinates of well centers
 		#self.y_centers are the y pixel coordinates of well centers
 
-
 	def load_single(self):
 		"""
 		Launch a GUI so people can click on the videofile that they want to track
@@ -87,7 +86,6 @@ class BehaviorClassifier(object):
 		self.root = self.parent(self.filename)  # Set the video's folder
 		self.name, self.fullname = self.get_fname(self.filename)
 		root.destroy()
-
 
 	def parent(self, path):
 		"""Returns parent directory of a path"""
@@ -110,7 +108,6 @@ class BehaviorClassifier(object):
 		print('\nHere are the attributes you can access using .:')
 		print(self.attributes)
 
-
 	def ask_crop(self):
 		"""
 		Asks if you would like to crop the start of a video to fix the aparature settings. If no does nothing.
@@ -120,18 +117,22 @@ class BehaviorClassifier(object):
 		root.withdraw()
 		MsgBox = tk.messagebox.askquestion('Crop Video',"Would you like to crop the video's beginning?", icon = 'warning')
 		if MsgBox == 'yes':
+			root.destroy()
 			self.how_long_crop()
-		root.destroy()
+		else:
+			root.destroy()
 
 	def how_long_crop(self):
 		"""
 		Another dialog asking how many seconds you would like to crop off the start of the video. Enter the number of
 		seconds cropped
 		"""
-		#callback function for the tkinter entry
+		#callback function for the tkinter entries
 		def get_time():
-			self.crop_time = int(Entry.get(entry_1))
-			my_window.quit()
+			#get the start and end times and save as variable
+			self.crop_time1 = int(Entry.get(entry_1))
+			self.crop_time2 = int(Entry.get(entry_2))
+			my_window.withdraw()
 			self.crop_start()
 			my_window.destroy()
 
@@ -142,12 +143,19 @@ class BehaviorClassifier(object):
 		label_1 = Label(my_window, text = 'How many seconds would you like to crop from the start:')
 		entry_1 = Entry(my_window)
 
+		#create second label for length of video
+		label_2 = Label(my_window, text = 'How long is the original video in seconds:')
+		entry_2 = Entry(my_window)
+
 		label_1.grid(row = 0, column = 0)
 		entry_1.grid(row = 0, column = 1)
 
+		label_2.grid(row = 1, column = 0)
+		entry_2.grid(row = 1, column = 1)
+
 		#add a "done" button to press when finished
 		button_1 = Button(my_window, text = "Done", command = get_time)
-		button_1.grid(row = 1, column = 0)
+		button_1.grid(row = 2, column = 0)
 
 		#run indefinitely
 		my_window.mainloop()
@@ -160,11 +168,11 @@ class BehaviorClassifier(object):
 		"""
 		print('Starting video crop')
 		p = Pool(self.n_cpus)
+		#need to set current directory for moviepy
 		os.chdir(self.root)
 		path = self.filename
-		start_time = self.crop_time
-		#arbitrary end time is really big like 300 minutes
-		end_time = 60
+		start_time = self.crop_time1
+		end_time = self.crop_time2
 
 		#rename the cropped file
 		filetype = self.fullname.split('.')[-1]
@@ -481,4 +489,4 @@ if __name__ == '__main__':
 	print('Program took this long to run: ' + str(time.time() - s) + ' seconds')
 
 	#if you want to show all the function outputs, uncomment the line below
-	#self.show_attributes()
+	self.show_attributes()
