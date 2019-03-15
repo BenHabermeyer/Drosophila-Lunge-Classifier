@@ -1,4 +1,4 @@
-function auto_track(flytracker_path, folders, f_vid, f_calib)
+function auto_track(flytracker_path, folder, f_vid, f_calib)
     %Ben Habermeyer
     %Function for calling flytracker given a video and calibration file
     %folders represents the folders containing videos to track
@@ -18,11 +18,10 @@ function auto_track(flytracker_path, folders, f_vid, f_calib)
 
     % set up tracker using inputted file and f_calib
     % loop through all folders
-    for f=1:numel(folders)
         % set parameters for specific folder
-        videos.dir_in  = folders{f};
-        videos.dir_out = folders{f}; % save results into video folder
-        videos.filter = f_vid;     % extension of the videos to process
+    videos.dir_in  = folder;
+    videos.dir_out = folder; % save results into video folder
+    videos.filter = f_vid;     % extension of the videos to process
         % track all videos within folder
-        tracker(videos, options, f_calib);
-    end
+    tracker(videos, options, f_calib);
+end
