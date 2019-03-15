@@ -116,11 +116,6 @@ function get_lunges2(directory, videoname, classifiername, excluded, xvals, yval
     tstart = allScores.t0s;
     tend = allScores.t1s;
     
-    %create big matrix with all 24 wells and their scores per frame
-    oldscores = NaN(length(scores), length(scores{1}));
-    for i = 1:length(scores)
-        oldscores(i, :) = scores{i};
-    end
     %I  made ids a cell so make a matrix for easy indexing
     ids_mat = NaN(24,1);
     for i = 1:24
