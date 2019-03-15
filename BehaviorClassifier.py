@@ -45,23 +45,23 @@ class BehaviorClassifier(object):
 		#select the video file
 		self.load_single()
 		#ask if you want to crop the first x seconds
-		self.ask_crop()
+		#self.ask_crop()
 
 		#MATLAB stuff
 		#calibrate the tracker
-		self.calibrate_tracker()
+		#self.calibrate_tracker()
 		self.checkbox_grid()
 		self.find_centers()
 		#track the video
-		self.run_tracker()
+		#self.run_tracker()
 		#reorganize the folders for JAABA
-		self.prepare_JAABA()
+		#self.prepare_JAABA()
 		
 		#JAABA stuff
 		#run the JAABA program
-		self.classify_behavior()
+		#self.classify_behavior()
 		#get the output
-		self.get_lunge_data()
+		#self.get_lunge_data()
 
 		#other important variables which will be created during this code run
 		#self.filename = full path to and ending with video name
