@@ -24,7 +24,26 @@ function get_lunges2(directory, videoname, classifiername, excluded, xvals, yval
     xdata = data;
     load y.mat
     ydata = data;
+    load x_mm.mat
+    xmm = data;
+    load y_mm.mat
+    ymm = data;
     clear data
+    
+    %compute euclidian distance for each of the flies
+    distance = zeros(1, length(xmm));
+    for fly = 1:length(xmm)
+        %if one of the values is NaN just call it 0 distance moved
+        for tstep = 2:length(xmm{1,1})
+            if (isnan(xmm{1,fly}(tstep-1))) || (isnan(xmm{1,fly}(tstep)))
+                distance(fly) = distance(fly);
+            else
+            distance(fly) = distance(fly) + ...
+                sqrt((xmm{1,fly}(tstep-1) - xmm{1,fly}(tstep))^2 + ...
+                (ymm{1,fly}(tstep-1) - ymm{1,fly}(tstep))^2);
+            end
+        end
+    end
     
     %boolean matrix for wells 1-12 whether they are excluded 1 or not 0
     is_excluded = zeros(1,12);
@@ -34,7 +53,7 @@ function get_lunges2(directory, videoname, classifiername, excluded, xvals, yval
 
     %use a cell arary to store wells 1-12 flies A-B and their corresponding
     %information
-    ids = cell(24, 7);
+    ids = cell(24, 8);
     %instantiate positions
     counter = 1;
     for i = 1:12
@@ -134,22 +153,23 @@ function get_lunges2(directory, videoname, classifiername, excluded, xvals, yval
             %add startframes and endframes to cell array of ids
             ids_ind = find(ids_mat == i);
             starttostring = sprintf('%d, ', startframes);
-            ids{ids_ind, 5} = starttostring(1:end-2);
+            ids{ids_ind, 6} = starttostring(1:end-2);
             endtostring = sprintf('%d, ', endframes);
-            ids{ids_ind, 6} = endtostring(1:end-2);
+            ids{ids_ind, 7} = endtostring(1:end-2);
             %count the number of lunge bouts
             ids{ids_ind, 4} = length(startframes);
+            ids{ids_ind, 5} = round(distance(i));
             %convert start time frames to seconds (assume 30fps)
             starttimetostring = sprintf('%d, ', round(startframes ./ 30));
-            ids{ids_ind, 7} = starttimetostring(1:end-2);
+            ids{ids_ind, 8} = starttimetostring(1:end-2);
             i = i + 1;
         end
     end
 
     %write the data to an excel file - has directory name_classifier name
     filename = strcat(directory, '\', videoname, '_', classifiername, '_Data.xlsx');
-    titles = {'Well Position', 'Fly ID', 'Excluded', 'Number of Lunges', 'Start Frames', ...
-        'End Frames', 'Start Times (s)'};
+    titles = {'Well Position', 'Fly ID', 'Excluded', 'Number of Lunges', ...
+        'Distance (mm)', 'Start Frames', 'End Frames', 'Start Times (s)'};
     output = [titles; ids];
     xlswrite(filename, output);
     
