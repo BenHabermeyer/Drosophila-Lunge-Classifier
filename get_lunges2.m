@@ -34,7 +34,7 @@ function get_lunges2(directory, videoname, classifiername, excluded, xvals, yval
     distance = zeros(1, length(xmm));
     for fly = 1:length(xmm)
         %if one of the values is NaN just call it 0 distance moved
-        for tstep = 2:length(xmm{1,1})
+        for tstep = 2:length(xmm{1,fly})
             if (isnan(xmm{1,fly}(tstep-1))) || (isnan(xmm{1,fly}(tstep)))
                 distance(fly) = distance(fly);
             else
